@@ -1,0 +1,72 @@
+name: Publish time-limited portfolio
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+  schedule:
+    # UTC: 2026-11-16 15:10 = 2026-11-16 23:10 Asia/Shanghai.
+    # Three same-day retries and one next-day retry cover a missed/delayed run.
+    - cron: '10,25,40,55 15 16 11 *'
+    - cron: '10 0 17 11 *'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  eligibility:
+    runs-on: ubuntu-latest
+    permissions: {}
+    outputs:
+      publish: ${{ steps.guard.outputs.publish }}
+    steps:
+      - name: Restrict scheduled publishing to this 2026 expiry
+        id: guard
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          publish=true
+          if [ "$EVENT_NAME" = schedule ]; then
+            case "$(date -u +%F)" in
+              2026-11-16|2026-11-17) ;;
+              *) publish=false ;;
+            esac
+          fi
+          echo "publish=$publish" >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: eligibility
+    if: needs.eligibility.outputs.publish == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: read
+    steps:
+      - name: Check out site source
+        uses: actions/checkout@v6
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v5
+      - name: Build active or expired artifact using the runner clock
+        run: python3 scripts/build_site.py --output-dir _site
+      - name: Upload only the generated artifact
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Publish GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

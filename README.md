@@ -23,3 +23,9 @@ Historical offline comparisons replay YOLO11n + v22 and LoRAT results on real vi
 The large-deformation animation comes from the author's [research repository, pinned source](https://github.com/KaiXiao55/3DMorphingArchitectedMaterials/tree/d48e44e526d00809beee3b58ad3b167261f352dc/3.%20Bistability), `none.gif`. It is a cropped video conversion of the existing simulation frames. Playback time is not physical simulation time and colors do not represent stress. The force/energy figure is Fig. 3 from the [early research preprint](https://arxiv.org/abs/2310.14220); it compares designs and is not synchronized to the animation.
 
 The inverse-design image is the complete, unmodified Fig. 1 from Xiao et al., [Nature Communications 13, 7474 (2022)](https://doi.org/10.1038/s41467-022-35224-2), © The Author(s) 2022, licensed under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). It shows geometric reconstruction and corresponding fabricated prototypes; force and stability evidence is presented separately.
+
+## Time-limited sharing
+
+The public presentation is scheduled to expire on **2026-11-16 at 23:10 Asia/Shanghai** (15:10 UTC), configured in `site-expiry.json`. GitHub Actions builds the production artifact using its runner clock. Before expiry it copies the public site; at and after expiry it publishes only an expiry notice, a generic 404 page, and robots.txt. No PDF or media assets are included in the expired artifact. The scheduled run has same-day and next-day fallback attempts; GitHub scheduling and cache propagation can delay the effective change.
+
+This closes the Pages presentation endpoints. The source repository is retained and remains public; it does not revoke copies already downloaded. Existing public simulation and research-code repositories are separate.

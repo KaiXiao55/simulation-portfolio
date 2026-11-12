@@ -4,6 +4,7 @@
 
   const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
   const deckStates = new Map();
+  const playlistsBySlide = new WeakMap();
   let storyMeasureFrame = 0;
   let storyScrollFrame = 0;
   let storyScrollTimer = 0;
@@ -48,6 +49,18 @@
   const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
   const headerHeight = () => Number.parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--header')) || 0;
   const storyEnabled = state => Boolean(state.stage) && !state.expanded;
+  const clipTitle = (playlist, index) => playlist.buttons[index]?.textContent.trim() || playlist.buttons[index]?.dataset.label || '';
+  function updateMediaCounter(state, index, mediaIndex) {
+    const slide = state.slides[index];
+    const playlist = playlistsBySlide.get(slide);
+    const hasVideo = Boolean(slide.querySelector('video'));
+    const count = playlist?.buttons.length || 1;
+    const current = clamp(mediaIndex ?? playlist?.index ?? 0, 0, count - 1);
+    const text = state.expanded ? '选择片段后点击播放' : playlist
+      ? `片段 ${current + 1}/${count} · ${current < count - 1 ? `下一段：${clipTitle(playlist, current + 1)}` : '本页最后一段 · 点击播放'}`
+      : '本页 1 段视频 · 点击播放';
+    state.mediaCounters.forEach(label => { label.hidden = !hasVideo; label.textContent = hasVideo ? text : ''; });
+  }
   function updateStoriesFromScroll() {
     storyScrollFrame = 0;
     // Layout changes can move the native scroll anchor before measurement. Keep
@@ -62,19 +75,38 @@
       const actualIndex = index < 0 ? story.steps.length - 1 : index;
       const step = story.steps[actualIndex];
       const local = clamp(offset - step.offset, 0, step.distance);
+      const transitionFraction = step.transitionDistance ? clamp((local - step.contentDistance) / step.transitionDistance, 0, 1) : 0;
+      const mediaIndex = local < step.baseDistance - 0.5 ? 0 : Math.min(step.mediaCount - 1, 1 + Math.floor(Math.max(0, local - step.baseDistance + 0.5) / step.mediaDistance));
+      const mediaLocal = local - step.mediaOffsets[mediaIndex];
+      const mediaFraction = mediaIndex ? clamp(mediaLocal / step.mediaDistance, 0, 1) : 0;
       story.wasActive = y >= story.start - 1 && y < story.start + story.total;
       story.local = local;
+      story.mediaIndex = mediaIndex;
+      story.mediaFraction = mediaFraction;
+      story.transitionFraction = transitionFraction;
       if (state.index !== actualIndex) renderState(state, actualIndex);
-      const left = leftFor(state, actualIndex);
+      const playlist = playlistsBySlide.get(state.slides[actualIndex]);
+      if (playlist && playlist.index !== mediaIndex) playlist.select(mediaIndex);
+      updateMediaCounter(state, actualIndex, mediaIndex);
+      const fromLeft = leftFor(state, actualIndex);
+      const left = transitionFraction && actualIndex < state.slides.length - 1
+        ? fromLeft + (leftFor(state, actualIndex + 1) - fromLeft) * transitionFraction : fromLeft;
       story.expectedLeft = left;
       if (Math.abs(state.track.scrollLeft - left) > 0.5) state.track.scrollTo({ left, behavior: 'instant' });
-      const top = clamp(local - step.lead, 0, step.overflow);
+      if (transitionFraction && actualIndex < state.slides.length - 1) {
+        const nextSlide = state.slides[actualIndex + 1];
+        nextSlide.scrollTop = 0;
+        const nextPlaylist = playlistsBySlide.get(nextSlide);
+        if (nextPlaylist && nextPlaylist.index !== 0) nextPlaylist.select(0);
+      }
+      const top = mediaIndex ? step.mediaTop : clamp(local - step.lead, 0, step.overflow);
       if (Math.abs(state.slides[actualIndex].scrollTop - top) > 0.5) state.slides[actualIndex].scrollTop = top;
       const progress = clamp(local / step.distance, 0, 1);
       state.storyProgress.forEach(bar => { bar.style.transform = `scaleX(${progress})`; });
-      const readingBody = step.overflow > 0 && local < step.lead + step.overflow;
-      const hint = readingBody ? `继续下滑，查看本页完整内容` : actualIndex < state.slides.length - 1
-        ? `向下继续：${tabTitle(state, actualIndex + 1)}` : '继续下滑，进入下一章节';
+      const readingBody = mediaIndex === 0 && step.overflow > 0 && local < step.lead + step.overflow;
+      const hint = readingBody ? '继续下滑，查看本页完整内容' : playlist && mediaIndex < step.mediaCount - 1
+        ? `下滑展示下一段：${clipTitle(playlist, mediaIndex + 1)}` : actualIndex < state.slides.length - 1
+          ? `向下继续：${tabTitle(state, actualIndex + 1)}` : '继续下滑，进入下一章节';
       state.scrollHints.forEach(label => { label.textContent = hint; });
       if (story.targetY !== null && Math.abs(y - story.targetY) < 2) {
         story.targetY = null;
@@ -94,8 +126,8 @@
         if (story.targetY !== null && Number.isInteger(state.pendingIndex)) {
           // A second ResizeObserver delivery can follow an all→story switch.
           // Preserve the explicitly requested destination, not its interim page.
-          anchor = { state, index: state.pendingIndex, local: 0 };
-        } else if (story.wasActive) anchor = { state, index: state.index, local: story.local || 0 };
+          anchor = { state, index: state.pendingIndex, local: 0, mediaIndex: story.targetMediaIndex || 0, mediaFraction: 0, transitionFraction: 0 };
+        } else if (story.wasActive) anchor = { state, index: state.index, local: story.local || 0, mediaIndex: story.mediaIndex || 0, mediaFraction: story.mediaFraction || 0, transitionFraction: story.transitionFraction || 0 };
       });
     }
     deckStates.forEach(state => {
@@ -103,10 +135,13 @@
       if (state.expanded) {
         state.chapter.removeAttribute('data-scroll-story');
         state.chapter.style.height = state.originalChapterHeight;
+        state.track.style.scrollSnapType = state.originalTrackSnap;
         state.story.configured = false;
         return;
       }
       state.chapter.dataset.scrollStory = 'true';
+      // Document position owns horizontal position, including fractional slides.
+      state.track.style.scrollSnapType = 'none';
       const stageHeight = state.stage.getBoundingClientRect().height;
       const viewHeight = state.track.clientHeight;
       if (stageHeight < 200 || viewHeight < 100 || state.slides.some(slide => slide.clientHeight < 60)) {
@@ -115,6 +150,7 @@
         state.deck.dataset.mode = 'all';
         state.chapter.removeAttribute('data-scroll-story');
         state.chapter.style.height = state.originalChapterHeight;
+        state.track.style.scrollSnapType = state.originalTrackSnap;
         state.story.configured = false;
         state.slides.forEach(slide => { slide.scrollTop = 0; });
         renderState(state, state.index);
@@ -122,10 +158,18 @@
       }
       const reading = Math.max(180, viewHeight * 0.8);
       let offset = 0;
-      const steps = state.slides.map(slide => {
+      const steps = state.slides.map((slide, slideIndex) => {
         const overflow = Math.max(0, slide.scrollHeight - slide.clientHeight);
-        const distance = reading + overflow;
-        const step = { offset, end: offset + distance, distance, lead: reading * 0.4, overflow };
+        const playlist = playlistsBySlide.get(slide);
+        const mediaCount = playlist?.buttons.length || 1;
+        const mediaDistance = Math.max(140, viewHeight * 0.7);
+        const baseDistance = reading + overflow;
+        const contentDistance = baseDistance + (mediaCount - 1) * mediaDistance;
+        const transitionDistance = !reduceMotion.matches && slideIndex < state.slides.length - 1 ? viewHeight * 0.25 : 0;
+        const distance = contentDistance + transitionDistance;
+        const mediaOffsets = Array.from({ length: mediaCount }, (_, index) => index ? baseDistance + (index - 1) * mediaDistance : 0);
+        const mediaTop = playlist ? clamp(playlist.container.getBoundingClientRect().top - slide.getBoundingClientRect().top + slide.scrollTop - 12, 0, overflow) : 0;
+        const step = { offset, end: offset + distance, distance, contentDistance, transitionDistance, baseDistance, lead: reading * 0.4, overflow, mediaCount, mediaDistance, mediaOffsets, mediaTop };
         offset += distance;
         return step;
       });
@@ -144,7 +188,10 @@
     });
     if (anchor && storyEnabled(anchor.state) && anchor.state.story.configured) {
       const step = anchor.state.story.steps[anchor.index];
-      const top = Math.ceil(anchor.state.story.start + step.offset + clamp(anchor.local, 0, step.distance - 1));
+      const mediaIndex = Math.min(anchor.mediaIndex, step.mediaCount - 1);
+      const local = anchor.transitionFraction ? step.contentDistance + anchor.transitionFraction * step.transitionDistance
+        : mediaIndex ? step.mediaOffsets[mediaIndex] + anchor.mediaFraction * step.mediaDistance : clamp(anchor.local, 0, step.baseDistance - 1);
+      const top = Math.ceil(anchor.state.story.start + step.offset + local);
       if (Math.abs(window.scrollY - top) > 1) window.scrollTo({ top, behavior: 'instant' });
     }
     updateStoriesFromScroll();
@@ -161,17 +208,20 @@
       storyMeasureCallbacks.splice(0).forEach(fn => fn());
     });
   }
-  function navigateStory(state, index, immediate) {
+  function navigateStory(state, index, immediate, mediaIndex = 0) {
     if (!state.story.configured) {
       scheduleStoryMeasure(false, () => {
-        if (storyEnabled(state) && state.story.configured) navigateStory(state, index, immediate);
+        if (storyEnabled(state) && state.story.configured) navigateStory(state, index, immediate, mediaIndex);
         else scrollContext(state.slides[index], immediate);
       });
       return;
     }
-    const top = Math.ceil(state.story.start + state.story.steps[index].offset);
+    const step = state.story.steps[index];
+    mediaIndex = clamp(mediaIndex, 0, step.mediaCount - 1);
+    const top = Math.ceil(state.story.start + step.offset + step.mediaOffsets[mediaIndex]);
     state.pendingIndex = index;
     state.story.targetY = top;
+    state.story.targetMediaIndex = mediaIndex;
     window.scrollTo({ top, behavior: immediate || reduceMotion.matches ? 'instant' : 'smooth' });
     requestStoryScrollUpdate();
   }
@@ -232,6 +282,7 @@
       button.setAttribute('aria-expanded', String(state.expanded));
       button.textContent = state.expanded ? '左右翻页演示 ↔' : '展开全部内容 ↓';
     });
+    updateMediaCounter(state, index);
     if (moveFocus) {
       const tab = state.tabs.find(candidate => indexOfTab(candidate) === index);
       (tab || state.track).focus({ preventScroll: true });
@@ -241,8 +292,10 @@
     window.clearTimeout(state.settleTimer);
     if (state.expanded || state.pointerActive) return;
     if (storyEnabled(state)) {
+      if (Math.abs(state.track.scrollLeft - state.story.expectedLeft) <= 1) return;
       const index = nearestIndex(state);
       if (index !== state.index) navigateStory(state, index, true);
+      else requestStoryScrollUpdate();
       return;
     }
     state.pendingIndex = null;
@@ -287,6 +340,7 @@
     state.expanded = expanded;
     state.deck.dataset.mode = expanded ? 'all' : 'slides';
     const rememberedIndex = state.index;
+    const rememberedMediaIndex = playlistsBySlide.get(state.slides[rememberedIndex])?.index ?? state.story?.mediaIndex ?? 0;
     if (state.stage) {
       if (expanded) state.chapter.removeAttribute('data-scroll-story');
       else state.chapter.dataset.scrollStory = 'true';
@@ -300,7 +354,7 @@
     if (state.stage) {
       scheduleStoryMeasure(false, () => {
         if (state.expanded) scrollContext(state.chapter);
-        else goTo(state, rememberedIndex, true);
+        else navigateStory(state, rememberedIndex, true, rememberedMediaIndex);
       });
     } else {
       if (!expanded) goTo(state, state.index, true);
@@ -324,10 +378,12 @@
       expandButtons: owned(deck, '[data-deck-expand]'),
       scrollHints: owned(deck, '[data-scroll-hint]'),
       storyProgress: owned(deck, '[data-story-progress]'),
+      mediaCounters: owned(deck, '[data-media-counter]'),
       expanded: deck.dataset.startExpanded === 'true',
       index: 0, pendingIndex: null, frame: 0, settleTimer: 0, pointerActive: false
     };
     state.originalChapterHeight = state.chapter?.style.height || '';
+    state.originalTrackSnap = state.track.style.scrollSnapType;
     state.story = { configured: false, steps: [], total: 0, start: 0, targetY: null, expectedLeft: 0 };
     if (state.stage && !state.expanded) state.chapter.dataset.scrollStory = 'true';
     deckStates.set(deck, state);
@@ -422,6 +478,7 @@
     }, 180);
   }, { passive: true });
   window.addEventListener('resize', () => scheduleStoryMeasure(), { passive: true });
+  reduceMotion.addEventListener?.('change', () => scheduleStoryMeasure());
   document.addEventListener('toggle', event => {
     if (event.target instanceof Element && event.target.closest('[data-slide]')) scheduleStoryMeasure();
   }, true);
@@ -515,24 +572,46 @@
     if (!player) return;
     const caption = container.querySelector('[data-clip-caption]');
     const buttons = Array.from(container.querySelectorAll('[data-video-src]')).filter(button => button.closest('[data-playlist]') === container);
+    if (!buttons.length) return;
+    const slide = container.closest('[data-slide]');
+    const state = slide && deckStates.get(slide.closest('[data-deck]'));
+    const initial = buttons.findIndex(button => button.getAttribute('aria-pressed') === 'true');
+    const playlist = {
+      container, player, buttons, index: Math.max(0, initial),
+      select(index) {
+        index = clamp(index, 0, buttons.length - 1);
+        const button = buttons[index];
+        if (!button.dataset.videoSrc) return;
+        if (index !== playlist.index) {
+          pendingSeeks.delete(player);
+          if (!player.paused) player.pause();
+          player.src = button.dataset.videoSrc;
+          if (button.dataset.poster) player.poster = button.dataset.poster;
+          else player.removeAttribute('poster');
+          player.setAttribute('aria-label', button.dataset.label || button.textContent.trim());
+          if (caption) caption.textContent = button.dataset.caption || '';
+          player.load();
+          // Exposing a clip is not watching it. Only a separate play action
+          // starts playback, including when another clip was already playing.
+        }
+        playlist.index = index;
+        buttons.forEach((other, otherIndex) => {
+          other.setAttribute('aria-pressed', String(otherIndex === index));
+          other.classList.toggle('is-active', otherIndex === index);
+        });
+        if (state && state.slides[state.index] === slide) updateMediaCounter(state, state.index, index);
+      }
+    };
+    if (slide && !playlistsBySlide.has(slide)) playlistsBySlide.set(slide, playlist);
     wireChoiceKeys(buttons);
-    buttons.forEach(button => button.addEventListener('click', () => {
-      if (!button.dataset.videoSrc) return;
-      const resume = !player.paused && !player.ended;
-      pendingSeeks.delete(player);
-      player.pause();
-      player.src = button.dataset.videoSrc;
-      if (button.dataset.poster) player.poster = button.dataset.poster;
-      else player.removeAttribute('poster');
-      player.setAttribute('aria-label', button.dataset.label || button.textContent.trim());
-      if (caption) caption.textContent = button.dataset.caption || '';
-      buttons.forEach(other => {
-        other.setAttribute('aria-pressed', String(other === button));
-        other.classList.toggle('is-active', other === button);
-      });
-      player.load();
-      if (resume) playSafely(player);
+    buttons.forEach((button, index) => button.addEventListener('click', () => {
+      playlist.select(index);
+      if (state?.expanded) renderState(state, state.slides.indexOf(slide));
+      if (state && storyEnabled(state) && playlistsBySlide.get(slide) === playlist) {
+        navigateStory(state, state.slides.indexOf(slide), true, index);
+      }
     }));
+    playlist.select(playlist.index);
   });
 
   const chapters = Array.from(document.querySelectorAll('section[data-chapter]'));

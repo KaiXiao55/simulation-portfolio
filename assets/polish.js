@@ -34,10 +34,29 @@
     status.className = 'video-cover-note';
     status.setAttribute('role', 'status');
     status.setAttribute('aria-live', 'polite');
+    status.hidden = true;
+    const help = document.createElement('div');
+    help.className = 'video-help';
+    help.hidden = true;
+    const retry = document.createElement('button');
+    retry.type = 'button';
+    retry.textContent = '重新加载';
+    const open = document.createElement('a');
+    open.textContent = '单独打开视频 ↗';
+    open.target = '_blank';
+    open.rel = 'noopener';
+    help.append(retry, open);
+    const original = document.createElement('a');
+    original.className = 'video-quality-link';
+    original.textContent = '打开清晰版 ↗';
+    original.target = '_blank';
+    original.rel = 'noopener';
+    original.hidden = true;
     action.append(icon, label);
     cover.append(poster, action);
     video.before(shell);
     shell.append(video, cover, status);
+    shell.after(help, original);
 
     let generation = 0;
     let loadingTimer = 0;
@@ -45,6 +64,32 @@
     let signature = '';
     const title = () => video.getAttribute('aria-label') || '项目演示视频';
     const clearTimer = () => { window.clearTimeout(loadingTimer); loadingTimer = 0; };
+    const syncLink = () => {
+      // currentSrc can still point to the previous playlist clip during load().
+      const source = video.getAttribute('src') || video.querySelector('source[src]')?.getAttribute('src');
+      let url;
+      try { url = new URL(source || '', document.baseURI); } catch { /* No playable URL. */ }
+      const safe = Boolean(source && url && url.origin === window.location.origin && /^https?:$/.test(url.protocol));
+      open.hidden = !safe;
+      if (safe) open.href = url.href;
+      else open.removeAttribute('href');
+      open.setAttribute('aria-label', `单独打开视频：${title()}`);
+      retry.setAttribute('aria-label', `重新加载：${title()}`);
+      const webPath = safe && url.pathname.match(/^(.*\/assets\/)web\/([^/]+\.mp4)$/);
+      original.hidden = !webPath;
+      if (webPath) {
+        const originalUrl = new URL(url);
+        originalUrl.pathname = webPath[1] + webPath[2];
+        original.href = originalUrl.href;
+      } else original.removeAttribute('href');
+      original.setAttribute('aria-label', `打开清晰版：${title()}`);
+    };
+    const note = (text = '', offerHelp = false) => {
+      status.textContent = text;
+      status.hidden = !text;
+      help.hidden = !offerHelp;
+      if (offerHelp) syncLink();
+    };
     const show = (state, text) => {
       shell.dataset.videoState = state;
       shell.classList.toggle('is-loading', state === 'loading');
@@ -53,7 +98,7 @@
       cover.setAttribute('aria-busy', String(state === 'loading'));
       cover.setAttribute('aria-label', `${text}：${title()}`);
       label.textContent = text;
-      status.textContent = state === 'error' ? '视频暂未播放，请点击重试。' : '';
+      note(state === 'error' ? '暂时无法播放' : '', state === 'error');
     };
     const fail = () => {
       generation++;
@@ -73,6 +118,7 @@
       poster.hidden = !src;
       if (src) poster.src = src;
       else poster.removeAttribute('src');
+      syncLink();
       show('idle', '播放演示');
     };
     const loading = () => {
@@ -81,23 +127,34 @@
       show('loading', '正在加载');
       const token = generation;
       loadingTimer = window.setTimeout(() => {
-        if (token === generation && !revealed) fail();
+        // A slow connection is not a playback failure. Keep the request alive.
+        if (token === generation && !revealed && !video.paused) {
+          label.textContent = '正在缓冲';
+          note('网络较慢，正在缓冲', true);
+        }
       }, 20000);
     };
-
-    cover.addEventListener('click', () => {
+    const startPlayback = (reload = false) => {
       const token = ++generation;
-      // A failed media load needs a fresh request; ordinary pause/resume does not.
-      if (video.error) video.load();
+      // Only an explicit retry or actual media error starts a fresh request.
+      if (reload || video.error) {
+        revealed = false;
+        video.load();
+      }
       if (video.ended) video.currentTime = 0;
       loading();
       try {
         const request = video.play();
         if (request && typeof request.catch === 'function') {
-          request.catch(() => { if (token === generation) fail(); });
+          request.catch(error => {
+            // Changing clips or pausing deliberately aborts pending play().
+            if (token === generation && error?.name !== 'AbortError') fail();
+          });
         }
       } catch (_) { if (token === generation) fail(); }
-    });
+    };
+    cover.addEventListener('click', () => startPlayback());
+    retry.addEventListener('click', () => startPlayback(true));
     // Also supports the existing explicit scene-seek buttons in the core script.
     video.addEventListener('play', () => { if (!video.paused && !revealed) loading(); });
     video.addEventListener('playing', () => {
@@ -110,16 +167,33 @@
       cover.hidden = true;
       cover.disabled = false;
       cover.setAttribute('aria-busy', 'false');
-      status.textContent = '';
-      // Do not leave keyboard focus on the now-hidden cover.
-      if (document.activeElement === cover) video.focus({ preventScroll: true });
+      note();
+      // Do not leave keyboard focus on a control hidden after playback starts.
+      if (document.activeElement === cover || help.contains(document.activeElement)) video.focus({ preventScroll: true });
     });
+    const buffering = () => {
+      if (video.paused || video.readyState >= HTMLMediaElement.HAVE_FUTURE_DATA) return;
+      if (!revealed) {
+        if (shell.dataset.videoState !== 'loading') loading();
+        return;
+      }
+      shell.dataset.videoState = 'buffering';
+      // Keep native controls available while buffering after the first frame.
+      note('正在缓冲', true);
+    };
+    video.addEventListener('waiting', buffering);
+    video.addEventListener('stalled', buffering);
     video.addEventListener('pause', () => {
+      // load() may queue an old pause event before a deliberate retry plays.
+      if (!video.paused) return;
       clearTimer();
       if (!revealed && shell.dataset.videoState === 'loading') {
         generation++;
         video.controls = false;
         show('idle', '播放演示');
+      } else if (revealed) {
+        shell.dataset.videoState = 'paused';
+        note();
       }
     });
     video.addEventListener('ended', () => {
@@ -129,7 +203,7 @@
       video.controls = false;
       show('ended', '重新播放');
     });
-    video.addEventListener('error', fail);
+    video.addEventListener('error', () => { if (video.error) fail(); });
     poster.addEventListener('error', () => { poster.hidden = true; });
 
     const mediaSignature = () => JSON.stringify([

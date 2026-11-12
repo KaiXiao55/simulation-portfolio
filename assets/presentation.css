@@ -59,3 +59,7 @@ main,footer{max-width:1240px}main{width:calc(100% - 96px)}
 }
 @media(prefers-reduced-motion:reduce){.video-cover-ui{transition:none}.video-cover:hover .video-cover-ui{transform:none}}
 @media print{.video-cover{display:none!important}.video-shell{box-shadow:none;border-radius:0}.project-chapter{margin-top:0}.chapter-heading p{display:block!important}}
+
+/* Buffering feedback stays above the image and clear of native playback controls. */
+.video-cover-note{top:12px;bottom:auto;left:12px;right:auto;z-index:2;max-width:calc(100% - 24px);padding:6px 10px;border-radius:8px;background:rgba(25,25,28,.78);color:#fff;text-align:left;pointer-events:none}.video-cover-note[hidden],.video-help[hidden],.video-help a[hidden]{display:none}.video-help{display:flex;flex-wrap:wrap;align-items:center;gap:16px;margin:5px 3px 0;font-size:12px;line-height:1.6}.video-help button,.video-help a{display:inline-flex;align-items:center;min-height:32px;padding:5px 0;border:0;background:none;color:var(--accent,#0066cc);font:inherit}.video-help button:hover,.video-help a:hover{text-decoration:underline}@media print{.video-help,.video-cover-note{display:none!important}}
+.video-quality-link{display:inline-flex;align-items:center;min-height:28px;margin:2px 3px 0;font-size:11px;line-height:1.6;color:var(--accent,#0066cc)}.video-quality-link:hover{text-decoration:underline}.video-quality-link[hidden]{display:none}@media print{.video-quality-link{display:none!important}}

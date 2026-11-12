@@ -523,6 +523,26 @@
   };
   window.addEventListener('hashchange', scheduleHashReveal);
   scheduleHashReveal();
+  // A later deferred script can postpone the browser's initial fragment scroll
+  // until DOMContentLoaded, after our first layout/frame has already run.
+  // Reconcile that one initial navigation, but never pull an active reader back.
+  if (document.readyState !== 'complete' && window.location.hash) {
+    const initialHash = window.location.hash;
+    let readerInteracted = false;
+    const inputEvents = ['wheel', 'touchstart', 'pointerdown', 'keydown'];
+    const noteReaderInput = () => { readerInteracted = true; };
+    inputEvents.forEach(type => window.addEventListener(type, noteReaderInput, { passive: true, capture: true }));
+    document.addEventListener('DOMContentLoaded', () => {
+      const reconcile = () => {
+        if (!readerInteracted && window.location.hash === initialHash) revealHashSlide();
+      };
+      reconcile();
+      window.requestAnimationFrame(() => {
+        reconcile();
+        inputEvents.forEach(type => window.removeEventListener(type, noteReaderInput, true));
+      });
+    }, { once: true });
+  }
 
   const simulation = document.getElementById('simulation-video');
   const seekButtons = Array.from(document.querySelectorAll('[data-seek]')).filter(button => Number.isFinite(Number(button.dataset.seek)));

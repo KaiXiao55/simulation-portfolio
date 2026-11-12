@@ -1,39 +1,77 @@
 <!doctype html>
 <html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow">
 <title>肖锴 Kai Xiao · 仿真、视觉与系统工程</title><meta name="description" content="从真实遥控赛车跟拍到自建仿真评测，从可重构结构设计到大变形数值验证。项目演示、论文、源码及简历。">
-<link rel="stylesheet" href="assets/portfolio.css?v=2"><script defer src="assets/portfolio.js?v=2"></script></head><body>
-<a class="skip" href="#main">跳到正文</a><header><a class="wordmark" href="./">肖锴 / Kai Xiao</a><nav aria-label="导航"><a href="#simulator">仿真评测</a><a href="#deformation">博士研究</a><a href="#rc-app">真实跟拍</a><a href="Kai_Xiao_Simulation_Resume.pdf" target="_blank" rel="noopener">简历 ↗</a></nav></header>
+<link rel="stylesheet" href="assets/portfolio.css?v=3"><script defer src="assets/portfolio.js?v=3"></script></head><body>
+<a class="skip" href="#main">跳到正文</a><header><a class="wordmark" href="./">肖锴 / Kai Xiao</a><nav aria-label="导航"><a href="#rc-project">RC 自动跟拍</a><a href="#deformation">博士研究</a><a href="#experience">工业研发</a><a href="Kai_Xiao_Simulation_Resume.pdf" target="_blank" rel="noopener">简历 ↗</a></nav></header>
 <main id="main"><section class="bio"><p class="eyebrow">RESEARCH & ENGINEERING</p><h1>肖锴 <span>Kai Xiao</span></h1>
 <p class="affiliation">上海交通大学机械工程博士 · 比亚迪高级前瞻研究工程师</p><p class="bio-meta">车身部门 AI 业务负责人之一 · 1997 年生 · 在职</p>
 <p class="about">我的工作围绕三个问题：结构怎样按设计运动，算法怎样在复杂场景中可靠工作，以及计算结果怎样接受真实实验检验。下面通过项目演示，介绍问题、方法和可核验的结果。</p>
 <div class="contact-links"><a class="resume-link" href="Kai_Xiao_Simulation_Resume.pdf" target="_blank" rel="noopener">两页简历 PDF ↗</a><a href="#publications">第一作者论文</a><a href="https://github.com/KaiXiao55" target="_blank" rel="noopener">GitHub ↗</a><a href="mailto:xk573786@gmail.com">联系我</a></div></section>
 
-<article class="project" id="simulator"><div class="project-heading"><p class="eyebrow">01 / 自建仿真 · 环境与模块集成 · 基准评测</p><h2>把偶发的跟踪失败，变成可重复的实验</h2><p class="project-name">自建多场景视觉跟踪仿真平台</p></div>
-<p class="lead">遥控车又小又快，相似车辆交会或短暂遮挡，就可能让跟拍系统换错车或丢失目标。我自建仿真环境，把这些失败反复重现，逐项检验运动预测、目标记忆与恢复逻辑，再回到真实视频和手机上验证。</p>
-<section class="comparison-block" aria-labelledby="before-after-title">
-  <div class="comparison-heading"><h3 id="before-after-title">从“跟到一辆车”，到“持续跟住指定的车”</h3><span class="evidence-label">机制示意</span></div>
-  <figure class="media comparison-media">
-    <video controls playsinline preload="none" width="1024" height="576" poster="assets/rc-identity-recovery-mechanism-poster.jpg" aria-label="改进前后跟踪行为的机制示意">
-      <source src="assets/rc-identity-recovery-mechanism.mp4" type="video/mp4">
-    </video>
-    <figcaption>左右使用相同的车辆轨迹，演示交会、遮挡与重现时的跟踪行为。轨迹与输出为编排示意，不是影石、可镜等产品的实测，也不用于计算性能提升。</figcaption>
+<article class="project rc-project" id="rc-project">
+  <div class="project-heading"><p class="eyebrow">01 / 个人项目 · 自建仿真 · 视觉算法 · 手机与云台</p><h2>RC 自动跟拍：从真实难题，到仿真与实机验证</h2><p class="project-name">让玩家操作遥控器时，也能拍到自己指定的小车</p></div>
+  <p class="lead">遥控模型车速度快、目标小，场地又因玩家而异。系统需要在交会、遮挡和视角变化中持续认出同一辆车，并在手机上同时完成跟踪、录像与云台控制。</p>
+
+  <div class="project-stage" id="rc-problem"><p class="stage-number">01 / 问题</p><h3>持续认出并拍住同一辆车</h3>
+    <div class="problem-grid"><div><h4>小目标与快速运动</h4><p>远处小车仅占少量像素，接近相机时尺度迅速变化；更新滞后就会把镜头转向旧位置。</p></div><div><h4>交会、遮挡与身份保持</h4><p>相似小车容易混淆；短暂遮挡后，需要重新确认目标，避免错误接续到另一辆车。</p></div><div><h4>换场地也要能工作</h4><p>赛道、光照、背景和机位都在变；手机还要分配算力给录像、推理与控制。</p></div></div>
+  </div>
+
+  <div class="project-stage" id="simulator"><p class="stage-number">02 / 方法</p><h3>自建多场景仿真，把现场失败变成可重复的实验</h3>
+    <p class="stage-intro">实地试车每次的轨迹、遮挡和干扰都不同，很难知道一次改动为什么有效。我搭建三维赛道、车辆、相机与二轴云台，固定测试条件，分别检查检测、目标匹配、失锁恢复和控制响应。</p>
+    <figure class="media sim-player">
+      <video id="simulation-video" controls playsinline preload="none" width="996" height="560" poster="assets/vsim-sequential-poster.jpg" aria-label="六个自建仿真场景依次播放"><source src="assets/vsim-sequential.mp4" type="video/mp4"></video>
+      <div class="chapter-buttons" aria-label="选择仿真场景"><button type="button" data-seek="0" aria-pressed="true">室内</button><button type="button" data-seek="6" aria-pressed="false">柏油路面</button><button type="button" data-seek="12" aria-pressed="false">专业赛道</button><button type="button" data-seek="18" aria-pressed="false">坡道</button><button type="button" data-seek="24" aria-pressed="false">沙地</button><button type="button" data-seek="30" aria-pressed="false">草地</button></div>
+      <figcaption>六个场景依次展示，每段 6 秒；可选择场景跳转。保留原始画幅与播放速度，左右留边；标注用于检查仿真结果。</figcaption>
+    </figure>
+    <div class="problem-grid sim-methods"><div><h4>复现困难条件</h4><p>固定赛道、机位、车辆与随机种子，注入漏检、误检、延迟和丢包，重复触发跟丢、串车与云台回摆。</p></div><div><h4>检验算法改动</h4><p>研究独立运动预测、匹配约束与失锁恢复；在相同场景和评分规则下比较表现，再回到真实视频复核。</p></div><div><h4>构建训练与评测数据</h4><p>自动生成带标注图像，隔离测试场景；在渲染图像中实际运行 YOLO，校准可控的检测误差模型。</p></div></div>
+    <p class="takeaway"><strong>这套仿真的意义</strong>为算法提供可复现的“试验场”：知道它在哪类条件下失效、哪项改动有效，而不只依靠几次现场试拍的印象。</p>
+    <div class="project-links"><a href="https://github.com/KaiXiao55/mac-rc-simulation" target="_blank" rel="noopener">自建仿真源码 ↗</a><a href="assets/src-digital-twin.mp4" target="_blank" rel="noopener">三维场地与云台演示 ↗</a></div>
+    <details><summary>仿真规模、YOLO 对标与独立场景测试</summary><div class="details-content"><p>对照测试覆盖 10 条赛道、6 种场景配置、8 个机位及 5–8 台车。用实际运行 YOLO11n 的输出校准连续漏检、误检与框抖动；可控误差观测由场景真值加入这些误差生成。评分真值与跟踪决策隔离，算法接收图像或检测观测，不直接取得目标答案。</p>
+      <div class="table-scroll"><table><caption>10 × 60 秒固定场景中的检测观测校准</caption><thead><tr><th>均值</th><th>实际运行 YOLO11n</th><th>可控误差模型</th></tr></thead><tbody><tr><th>对象召回率</th><td>78.59%</td><td>79.91%</td></tr><tr><th>含误检帧比例</th><td>66.76%</td><td>66.30%</td></tr><tr><th>跟踪锁定率</th><td>66.34%</td><td>63.83%</td></tr></tbody></table></div>
+      <p>上述实验衡量误差模型与网络输出的接近程度，均值接近不代表逐帧一致。另一组实验构建 9,000 张训练池图像、1,500 张验证图与 4,200 张隔离场景测试图；用 7,000 张图训练的 YOLO11m 在该仿真测试集取得 95.20% 召回率、90.49% 精确率。这是模拟器内跨环境结果，真实场地效果由后续视频单独展示。</p></div></details>
+  </div>
+
+  <div class="project-stage" id="rc-results"><p class="stage-number">03 / 验证与落地</p><h3>回到真实视频，检验算法；回到手机，检验完整系统</h3>
+    <p class="stage-intro">先用同一输入视频比较算法，再用真实场地拍摄检验镜头能否跟住车。两类材料回答不同的问题：算法是否改善定位与恢复，完整系统是否拍出了可用画面。</p>
+    <section class="evidence-panel" id="algorithm-comparison" data-playlist>
+  <div class="comparison-heading"><h4>同一真实视频：旧方案与 LoRAT 方案对照</h4><span class="evidence-label">历史离线评测</span></div>
+  <p class="comparison-intro">左侧为早期 YOLO 检测与跟踪方案，右侧为 LoRAT 跟踪方案；相同输入、相同初始目标。重点看交会和遮挡后，预测框里的车是否仍与下方“初始目标”一致。</p>
+  <figure class="media"><video controls playsinline preload="none" width="1280" height="720" poster="assets/wuhan-woods-historical-comparison-poster.jpg" aria-label="武汉树林真实视频的历史算法对照"><source src="assets/wuhan-woods-historical-comparison.mp4" type="video/mp4"></video>
+    <div class="chapter-buttons" aria-label="选择算法对照场景">
+      <button type="button" aria-pressed="true" data-video-src="assets/wuhan-woods-historical-comparison.mp4" data-poster="assets/wuhan-woods-historical-comparison-poster.jpg" data-label="武汉树林真实视频的历史算法对照" data-caption="武汉树林 · 多车交会与树干遮挡，约 15 秒。保留完整历史对照片段、初始模板和预测框，包括错误时段。">树林：多车与遮挡</button>
+      <button type="button" aria-pressed="false" data-video-src="assets/minz-historical-comparison.mp4" data-poster="assets/minz-historical-comparison-poster.jpg" data-label="MIN-Z真实赛道视频的历史算法对照" data-caption="MIN-Z 赛道 · 小目标与相似车辆交会，约 11 秒。对照初始白车，观察预测框是否换到旁车。">MIN-Z：相似小车</button>
+    </div>
+    <figcaption data-clip-caption>武汉树林 · 多车交会与树干遮挡，约 15 秒。保留完整历史对照片段、初始模板和预测框，包括错误时段。</figcaption>
   </figure>
-  <div class="comparison-reading"><div><h4>Before：典型失效（示意）</h4><p>两车交会后换错目标；目标短暂被挡住，重新出现时仍找不回来。画面里有车，不代表拍到了玩家指定的车。</p></div><div><h4>After：方案要实现的行为</h4><p>结合运动预测、目标身份记忆与重捕获约束，避免“看到相似的车就接上”；遮挡期间保留目标状态，重现后再确认。</p></div></div>
-  <p class="bridge"><strong>仿真怎样帮助改进：</strong>重复同一段交会与遮挡，检查预测、匹配和恢复分别在哪里出错；一次只改一项，再用真实视频复核。</p>
+  <details><summary>视频来源与评测范围</summary><div class="details-content"><p>在既有真实场景视频上回放保存的算法预测，不是手机云台实拍对照。历史版本为 YOLO11n-640 + v22 与 LoRAT combined / FP32 ALL；开头一次选择目标，保留原始标签与标称速率播放。预测框置信分数不等于跟踪成功率，片段也不能单独证明全程身份保持。</p><p>原片作者水印已保留：武汉树林来自“RC小旋风”，MIN-Z 来自“小贝RC遥控车体验馆”的公开实拍。视频用于展示算法行为与比较，不把原始场景拍摄归为本人作品。</p></div></details>
 </section>
 
-<div class="project-grid"><figure class="media"><video controls playsinline preload="none" width="1278" height="852" poster="assets/vsim-multiscene-landscape-poster.jpg" aria-label="自建多场景仿真演示"><source src="assets/vsim-multiscene-landscape.mp4" type="video/mp4"></video><figcaption>多场景仿真演示 · 场景、赛车、相机和二轴云台由 SceneKit 搭建。<a href="assets/vsim-multiscene-landscape.mp4" target="_blank" rel="noopener">放大播放 ↗</a></figcaption></figure>
-<div class="project-story"><h3>仿真解决的三个问题</h3><dl>
-<dt>让失败条件可控</dt><dd>固定赛道、车辆运动和随机种子，分别改变连续漏检、误检、通信延迟与丢包，定位跟丢、串车和云台回摆的原因。</dd>
-<dt>让方案比较公平</dt><dd>不同算法面对同一批场景和评分规则；评分真值与跟踪决策隔离，算法接收图像或检测观测。</dd>
-<dt>让训练数据可生成</dt><dd>自动产生带标注的图像，隔离测试赛道、场景与机位，检验模型换到未见仿真环境后的表现。</dd></dl>
-<div class="project-links"><a href="https://github.com/KaiXiao55/mac-rc-simulation" target="_blank" rel="noopener">源码与运行说明 ↗</a><a href="assets/src-digital-twin.mp4" target="_blank" rel="noopener">场地与云台演示 ↗</a></div></div></div>
-<div class="experiment-flow" aria-label="仿真实验流程"><div><b>固定场景</b><span>赛道 · 机位 · 车辆 · 随机种子</span></div><i aria-hidden="true">→</i><div><b>改变观测与延迟</b><span>检测错误 · 遮挡 · 通信扰动</span></div><i aria-hidden="true">→</i><div><b>运行跟踪与云台</b><span>同一任务，对比不同方案</span></div><i aria-hidden="true">→</i><div><b>记录与评分</b><span>锁定 · 串车 · 失锁与恢复</span></div></div>
-<p class="takeaway"><strong>为什么需要自建仿真</strong>实地试车每次的轨迹和干扰都不同。仿真固定场景、单独改变干扰，让“这次拍得更好”变成“哪项改动有效、在哪些条件下仍会失败”的可复核结论。<a href="#algorithm-comparison">看真实视频中的算法对照 ↓</a></p>
-<details><summary>实验依据与结果：场景覆盖、YOLO 对照与独立测试</summary><div class="details-content"><p>对照测试覆盖 10 条赛道、6 种场景配置、8 个机位及 5–8 台车。在渲染图像上实际运行 YOLO11n，用其输出校准连续漏检、误检与框抖动的可控观测模型。虚拟检测观测由场景真值加入这些误差生成；跟踪器只接收观测，目标真值不作为跟踪答案直接输入。</p>
-<div class="table-scroll"><table><caption>同一组 10 × 60 秒场景中的检测观测校准</caption><thead><tr><th>均值</th><th>实际运行 YOLO11n</th><th>可控误差模型</th></tr></thead><tbody><tr><th>对象召回率</th><td>78.59%</td><td>79.91%</td></tr><tr><th>含误检帧比例</th><td>66.76%</td><td>66.30%</td></tr><tr><th>跟踪锁定率</th><td>66.34%</td><td>63.83%</td></tr></tbody></table></div>
-<p>两类检测观测的平均召回率与含误检帧比例相差 1.32、0.46 个百分点。这里比较的是可控误差模型与神经网络输出的接近程度；均值接近不代表逐帧一致，也不代表实拍泛化。</p>
-<p>另一组独立实验中，构建 9,000 张训练池图像、1,500 张验证图和 4,200 张隔离场景测试图。以 7,000 张图训练的 YOLO11m 取得 95.20% 召回率、90.49% 精确率。它衡量模拟器内跨环境检测性能，与上述误差校准及实车跟拍是不同实验。</p></div></details></article>
+    <section class="evidence-panel" id="app-comparison">
+  <div class="comparison-heading"><h4>真实使用片段：原有跟拍应用 → Lynz</h4><span class="evidence-label">同场地 · 不同回合</span></div>
+  <p class="comparison-intro">先看近距离横穿后，小车离开画面的原有应用录像；随后看 Lynz 在远近变化中的跟随与构图。这里展示实际拍摄结果，原片的抖动和出框也保留。</p>
+  <figure class="media"><video controls playsinline preload="none" width="1920" height="1080" poster="assets/rc-real-app-comparison-poster.jpg" aria-label="原有跟拍应用与Lynz不同回合的真实录像"><source src="assets/rc-real-app-comparison.mp4" type="video/mp4"></video><figcaption>前 9 秒：原有应用片段；随后约 21.5 秒：Lynz 实拍。原速、静音、完整画幅，字幕置于画面外。</figcaption></figure>
+  <details><summary>来源说明与比较条件</summary><div class="details-content"><p>原有应用按当时用户拍摄记录归为影石相关测试，录像本身未独立显示软件名称或 Tracking+ 开关；Lynz 片段与 App 保存的原始录像逐字节匹配。两段来自同场地的不同回合，不是相同轨迹的受控实验，也不据此计算“提升倍数”。</p><p>均从相机原片剪辑，没有后期稳像、补帧、AI 增强或人工跟踪框。Lynz 的其他原始时段也存在出框，本选段不表示全程不丢失。</p></div></details>
+</section>
+
+    <section class="evidence-panel" id="rc-app" data-playlist>
+  <div class="comparison-heading"><h4>最终实拍：白天遮挡、夜间绕行与快速过弯</h4><span class="evidence-label">手机 App 原始录像</span></div>
+  <p class="comparison-intro">从模型定位走到完整跟拍，需要把推理时序、目标恢复、镜头转动与录像一起做好。下面保留连续原片，观察实际取景、目标尺度变化，以及暂时遮挡后的画面恢复。</p>
+  <figure class="media"><video controls playsinline preload="none" width="1280" height="720" poster="assets/rc-day-occlusion-original-poster.jpg" aria-label="白天草地与长凳遮挡的真实跟拍"><source src="assets/rc-day-occlusion-original.mp4" type="video/mp4"></video>
+    <div class="chapter-buttons" aria-label="选择手机实拍场景">
+      <button type="button" aria-pressed="true" data-video-src="assets/rc-day-occlusion-original.mp4" data-poster="assets/rc-day-occlusion-original-poster.jpg" data-label="白天草地与长凳遮挡的真实跟拍" data-caption="白天连续 40 秒：路面→草地→长凳遮挡→回到路面。约 22–30 秒出现遮挡，36 秒后再次近距离跟随。">白天：遮挡与恢复</button>
+      <button type="button" aria-pressed="false" data-video-src="assets/rc-night-plaza-original.mp4" data-poster="assets/rc-night-plaza-original-poster.jpg" data-label="夜间广场远近变化的真实跟拍" data-caption="夜间广场连续 40.5 秒：小车跑远、绕行与返回，背景包含灯光和行人，观察镜头如何跟随尺度变化。">夜间：远近与绕行</button>
+      <button type="button" aria-pressed="false" data-video-src="assets/rc-night-fast-original.mp4" data-poster="assets/rc-night-fast-original-poster.jpg" data-label="夜间快速过弯与横穿的真实跟拍" data-caption="夜间快速过弯连续约 12.65 秒：约 5–7 秒快速横穿，随后再次转弯、靠近，保留原片运动模糊与抖动。">快速过弯与横穿</button>
+    </div>
+    <figcaption data-clip-caption>白天连续 40 秒：路面→草地→长凳遮挡→回到路面。约 22–30 秒出现遮挡，36 秒后再次近距离跟随。</figcaption>
+  </figure>
+  <p class="visual-note">三段均为相机原片的连续选段，保持原速与完整画幅，静音导出；未做后期稳像、插帧、动态裁切或新增跟踪框。</p>
+</section>
+
+    <p class="method-line"><strong>我的工作</strong>负责问题定义、方案选择、数据与实验设计及实机验收；开展 LoRAT 视觉 LoRA、YOLO 微调和 FEAR 跟踪集成，完成 iOS / Android 部署，使用 AI Agent 辅助代码实现与工程集成。</p>
+    <details><summary>端侧部署与性能验证</summary><div class="details-content"><div class="table-scroll"><table><thead><tr><th>环节</th><th>改动与测试条件</th><th>结果</th></tr></thead><tbody><tr><th>图像预处理</th><td>骁龙 870；融合灰度化与降采样，减少中间缓冲；1080p→640×360</td><td>单项耗时中位数 3.95→1.01 ms，输出像素一致</td></tr><tr><th>Android</th><td>FEAR / ncnn CPU；骁龙 870；静态短测，同时录制 1080p60</td><td>模型处理 25.9–26.7 帧/秒</td></tr><tr><th>iOS</th><td>iPhone 12；20 分钟静态目标测试；每秒 15 次调度设置</td><td>平均更新 14.77 次/秒；采集至结果延迟 P95 122 ms</td></tr></tbody></table></div><p>静态性能数据与动态场景的跟踪成功率分别评估；录像帧率不等于模型处理帧率。</p></div></details>
+  </div>
+</article>
+
 
 <article class="project" id="deformation"><div class="project-heading"><p class="eyebrow">02 / 博士研究 · 数值模型与代码扩展 · 实验验证</p><h2>从目标形状，研究到变形所需的力与稳定性</h2><p class="project-name">可重构结构的逆向设计与大变形仿真</p></div>
 <p class="lead">可重构结构要同时满足形状可达、运动中不发生几何干涉，以及变形后能稳定保持。我的研究将目标形状设计与力学计算连接起来：先确定结构怎样运动，再分析需要多大的力、是否存在能量屏障，以及哪些设计能形成稳定构型。</p>
@@ -65,30 +103,6 @@
 <ol class="steps physics-steps"><li><span class="step-no">01</span><strong>离散为计算模型</strong><p>把面片结构表示为杆件与转动弹簧，描述拉伸、弯曲和折叠。</p></li><li><span class="step-no">02</span><strong>设置材料与边界</strong><p>赋予材料本构和刚度，用支撑约束排除刚体运动，并施加位移控制。</p></li><li><span class="step-no">03</span><strong>求解构型、反力与储能</strong><p>沿加载路径分析大变形，研究驱动力、能量屏障与稳定构型。</p></li><li><span class="step-no">04</span><strong>对照实物实验</strong><p>比较仿真与加载实验的力—位移响应，检验双稳态及形状锁定。</p></li></ol>
 <p class="takeaway"><strong>研究意义</strong>让结构设计同时接受几何与力学检验，为可重构、可收展结构的方案选择提供可计算、可验证的依据。</p>
 <details><summary>数值实现与其他验证</summary><div class="details-content"><p>研究采用 Ogden 超弹性本构、弯曲／折叠转动刚度和位移控制；处理参数化 MATLAB 几何、STL 网格及基于 SAT 的三角面非碰撞约束，结合近邻筛选检查几何干涉。</p><p>此外，在固定构型的小变形加载中，依据弹性能对位移的二阶导数计算等效体积模量，由剪切应力—应变关系计算等效剪切模量。这组均匀化计算与大变形双稳态分析分开进行。</p><p>本人参与数值方案设计、模型与代码二次开发及实验验证；使用现有有限元框架开展研究。</p><div class="project-links"><a href="https://github.com/KaiXiao55/3DMorphingArchitectedMaterials" target="_blank" rel="noopener">大变形研究代码 ↗</a><a href="https://github.com/KaiXiao55/origami-architected-materials" target="_blank" rel="noopener">逆向设计代码 ↗</a></div></div></details></article>
-
-<article class="project" id="rc-app"><div class="project-heading"><p class="eyebrow">03 / 个人项目 · 视觉算法 · 手机与云台系统</p><h2>让一个人开车时，也能拍到自己的车</h2><p class="project-name">面向遥控赛车的手机自动跟拍</p></div>
-<p class="lead">玩家操作遥控器时难以兼顾拍摄。系统需要持续辨认并跟住指定的小车，同时转动相机、录下画面；这些任务必须在手机有限的算力和延迟预算内一起工作。</p>
-<div class="project-grid"><figure class="media"><video controls playsinline preload="none" width="1280" height="720" poster="assets/rc-field-landscape-poster.jpg" aria-label="手机遥控赛车跟拍与云台实机演示"><source src="assets/rc-field-landscape.mp4" type="video/mp4"></video><figcaption>真实场地演示 · 观察目标保持、镜头转向与录像同时运行。<a href="assets/rc-field-landscape.mp4" target="_blank" rel="noopener">放大播放 ↗</a></figcaption></figure><div class="project-story"><h3>真实 RC 跟拍的特点</h3><dl>
-<dt>目标小、运动快、尺度变化大</dt><dd>小车远处占画面很少，接近相机时又迅速变大；转弯和加速要求跟踪及时更新。</dd>
-<dt>要持续认出同一辆车</dt><dd>相似车辆交会和遮挡容易造成串车，失锁后需要重新找到指定目标。</dd>
-<dt>场地和相机都在变化</dt><dd>玩家使用不同赛道和背景；云台自身转动又改变视野，算法与控制延迟会共同影响画面。</dd>
-<dt>推理、录像与控制共享资源</dt><dd>处理太慢会积压旧帧，云台收到过时的位置。系统需要对齐时间戳、取消过期任务并减少缓冲拷贝。</dd></dl></div></div>
-<p class="method-line"><strong>我的工作</strong>负责问题定义、模型选型、数据与实验设计及实机验收；开展 LoRAT 视觉 LoRA、YOLO 微调和 FEAR 跟踪集成，完成 iOS / Android 端侧部署，使用 AI Agent 辅助代码实现与工程集成。</p>
-<section class="comparison-block" id="algorithm-comparison" aria-labelledby="real-comparison-title">
-  <div class="comparison-heading"><h3 id="real-comparison-title">同视频离线对照：丢失后，能否找回目标？</h3><span class="evidence-label">保存的算法输出</span></div>
-  <p class="comparison-intro">同一段真实 RC 视频、同一时刻：左侧是 FEAR-R 对照算法，右侧是我开发的历史跟踪与恢复方案。保留恢复前的失败，观察小车被遮挡后重新出现时，两套方案的不同反应。</p>
-  <figure class="media comparison-media">
-    <video controls playsinline preload="none" width="960" height="560" poster="assets/rc-offline-recovery-comparison-poster.jpg" aria-label="同视频 FEAR-R 与历史恢复方案的算法输出对照">
-      <source src="assets/rc-offline-recovery-comparison.mp4" type="video/mp4">
-    </video>
-    <figcaption>Mac 离线评测记录回放，46.04–55.05 秒选段。白框为几何参考，彩框为保存的预测；两栏局部放大使用相同区域，仅方便观看。P28 是历史研发版本代号。</figcaption>
-  </figure>
-  <div class="comparison-result"><div><span>该困难视频全片 · 可见目标定位成功率</span><strong>52.46% <i>→</i> 73.69%</strong><small>FEAR-R 对照 → 历史恢复方案 · 约提升 21 个百分点</small></div><p>统计预测框是否定位到目标，不等同于同车身份保持率。视频保留了恢复前的失败，结果来自同视频离线评测。</p></div>
-  <details><summary>指标定义、对比范围与原始汇总</summary><div class="details-content"><p>在目标可见的帧中，以预测框与几何参考框的 IoU ≥ 0.5 计为定位成功。它衡量定位，不单独认证目标身份。上述数字来自整段困难视频，不是只统计这 9 秒展示窗口。</p><p>这不是市售跟拍产品对比，不代表手机实时帧率或所有场地的成功率；历史方案也不是当前 App 每条部署路径的统一版本。仿真是开发与诊断工具，本实验没有单独测量“使用仿真”的因果增益。</p><a href="assets/comparison-metrics-public.json" target="_blank" rel="noopener">查看指标汇总 ↗</a></div></details>
-</section>
-
-<p class="takeaway"><strong>项目价值</strong>把视觉模型接入持续运行的拍摄系统，同时处理身份保持、时序、手机资源和云台响应，让算法能力接受实机场景的检验。</p>
-<details><summary>端侧性能结果与视频说明</summary><div class="details-content"><div class="table-scroll"><table><thead><tr><th>环节</th><th>改动与测试条件</th><th>结果</th></tr></thead><tbody><tr><th>图像预处理</th><td>骁龙 870；融合灰度化与降采样，减少中间缓冲；1080p→640×360</td><td>单项耗时中位数 3.95→1.01 ms，输出像素一致</td></tr><tr><th>Android</th><td>FEAR / ncnn CPU；骁龙 870；静态短测，同时录制 1080p60</td><td>模型处理 25.9–26.7 帧/秒</td></tr><tr><th>iOS</th><td>iPhone 12；20 分钟静态目标测试；每秒 15 次调度设置</td><td>平均更新 14.77 次/秒；采集至结果延迟 P95 122 ms</td></tr></tbody></table></div><p>静态性能数据来自独立测试日志，不等同于所有动态场景的跟踪成功率。录像帧率也不等于模型处理帧率。</p><p>视频为现有横屏成片的网页压缩版；外拍与 App 画面含不同次拍摄，部分片段经过后期稳像。配乐：<a href="https://punchdeck.bandcamp.com/track/feel-the-pulse" target="_blank" rel="noopener">Feel the Pulse — Punch Deck</a>，<a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener">CC BY 4.0</a>。</p></div></details></article>
 
 <section id="experience"><p class="eyebrow">INDUSTRIAL EXPERIENCE</p><h2>把工程约束纳入算法和仿真</h2><div class="experience-heading"><strong>比亚迪汽车工程研究院</strong><span>2024.01—至今</span></div><p class="position">高级前瞻研究工程师 · 车身部门 AI 业务负责人之一</p>
 <div class="industrial-project"><h3>气弹簧布置优化</h3><p>安装点与初始力值会共同改变前舱盖在不同开度下的操作力、平衡位置和可用行程。我将三维几何、质量与重心转成机构计算模型，用粒子群优化搜索候选布置，结合并行评估和三维可视化检查约束。</p><p class="industrial-significance">将反复试布置的问题转成可搜索、可校核的优化过程，同时处理空间、操作力与行程的耦合限制。</p></div>

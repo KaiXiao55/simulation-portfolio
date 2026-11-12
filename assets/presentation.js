@@ -27,6 +27,19 @@
   const owns = (element, deck) => element.closest('[data-deck]') === deck;
   const owned = (deck, selector) => Array.from(deck.querySelectorAll(selector)).filter(element => owns(element, deck));
   const indexOfTab = tab => Number.parseInt(tab.dataset.slideTo, 10);
+  const tabTitle = (state, index) => {
+    const tab = state.tabs.find(candidate => indexOfTab(candidate) === index);
+    return (tab?.textContent || state.slides[index]?.querySelector('h3, h2')?.textContent || '')
+      .trim().replace(/^(?:第\s*)?\d{1,2}(?:\s*页)?[\s.、．:：·\-—)）]*/, '').trim();
+  };
+  const scrollContext = (element, immediate = true) => {
+    if (!element) return;
+    const margin = Number.parseFloat(getComputedStyle(element).scrollMarginTop) || 0;
+    window.scrollTo({
+      top: window.scrollY + element.getBoundingClientRect().top - margin,
+      behavior: immediate || reduceMotion.matches ? 'instant' : 'smooth'
+    });
+  };
   const leftFor = (state, index) => {
     const trackRect = state.track.getBoundingClientRect();
     const slideRect = state.slides[index].getBoundingClientRect();
@@ -50,29 +63,39 @@
     let moveFocus = false;
     state.slides.forEach((slide, slideIndex) => {
       const active = slideIndex === index;
-      if (!active && slide.contains(activeElement)) moveFocus = true;
-      if (!active && !slide.inert) pauseVideos(slide);
-      slide.inert = !active;
-      slide.toggleAttribute('inert', !active);
-      slide.setAttribute('aria-hidden', String(!active));
+      const hidden = !state.expanded && !active;
+      if (hidden && slide.contains(activeElement)) moveFocus = true;
+      if (hidden && !slide.inert) pauseVideos(slide);
+      slide.inert = hidden;
+      slide.toggleAttribute('inert', hidden);
+      if (state.expanded) slide.removeAttribute('aria-hidden');
+      else slide.setAttribute('aria-hidden', String(hidden));
       slide.classList.toggle('is-active', active);
     });
     state.tabs.forEach(tab => {
       const active = indexOfTab(tab) === index;
       tab.setAttribute('aria-selected', String(active));
-      tab.tabIndex = active ? 0 : -1;
+      tab.tabIndex = state.expanded || active ? 0 : -1;
       tab.classList.toggle('is-active', active);
     });
     state.previous.forEach(button => {
-      button.disabled = index === 0;
-      button.setAttribute('aria-disabled', String(index === 0));
+      button.disabled = state.expanded || index === 0;
+      button.setAttribute('aria-disabled', String(button.disabled));
+      const label = button.querySelector('[data-prev-label]');
+      if (label) label.textContent = index === 0 ? '已到首页' : `上一页：${tabTitle(state, index - 1)}`;
     });
     state.next.forEach(button => {
-      button.disabled = index === state.slides.length - 1;
-      button.setAttribute('aria-disabled', String(index === state.slides.length - 1));
+      button.disabled = state.expanded || index === state.slides.length - 1;
+      button.setAttribute('aria-disabled', String(button.disabled));
+      const label = button.querySelector('[data-next-label]');
+      if (label) label.textContent = index === state.slides.length - 1 ? '本项目末页' : `下一页：${tabTitle(state, index + 1)}`;
     });
     state.counters.forEach(counter => {
-      counter.textContent = `${String(index + 1).padStart(2, '0')}/${String(state.slides.length).padStart(2, '0')}`;
+      counter.textContent = `第 ${index + 1} / ${state.slides.length} 页`;
+    });
+    state.expandButtons.forEach(button => {
+      button.setAttribute('aria-expanded', String(state.expanded));
+      button.textContent = state.expanded ? '左右翻页演示 ↔' : '展开全部内容 ↓';
     });
     if (moveFocus) {
       const tab = state.tabs.find(candidate => indexOfTab(candidate) === index);
@@ -81,7 +104,7 @@
   };
   const settle = state => {
     window.clearTimeout(state.settleTimer);
-    if (state.pointerActive) return;
+    if (state.expanded || state.pointerActive) return;
     state.pendingIndex = null;
     const index = nearestIndex(state);
     renderState(state, index);
@@ -95,6 +118,12 @@
   const goTo = (state, index, immediate = false) => {
     if (!Number.isInteger(index)) return;
     index = Math.max(0, Math.min(state.slides.length - 1, index));
+    if (state.expanded) {
+      // Expanded content is ordinary document navigation, not a read-progress
+      // signal: preserve the carousel's previous selection for restoration.
+      scrollContext(state.slides[index], immediate);
+      return;
+    }
     state.pendingIndex = index;
     renderState(state, index);
     const smooth = !immediate && !reduceMotion.matches;
@@ -104,6 +133,19 @@
     if (!smooth) state.pendingIndex = null;
     // Fallback for browsers without scrollend, including an already-aligned target.
     state.settleTimer = window.setTimeout(() => settle(state), smooth ? 700 : 40);
+  };
+  const setExpanded = (state, expanded) => {
+    window.clearTimeout(state.settleTimer);
+    window.cancelAnimationFrame(state.frame);
+    state.frame = 0;
+    state.pendingIndex = null;
+    state.pointerActive = false;
+    state.expanded = expanded;
+    state.deck.dataset.mode = expanded ? 'all' : 'slides';
+    renderState(state, state.index);
+    if (expanded) state.track.scrollTo({ left: 0, behavior: 'instant' });
+    else goTo(state, state.index, true);
+    scrollContext(state.deck.closest('section[data-chapter]'));
   };
 
   document.querySelectorAll('[data-deck]').forEach(deck => {
@@ -117,9 +159,12 @@
       previous: owned(deck, '[data-slide-prev]'),
       next: owned(deck, '[data-slide-next]'),
       counters: owned(deck, '[data-slide-counter]'),
+      expandButtons: owned(deck, '[data-deck-expand]'),
+      expanded: deck.dataset.startExpanded === 'true',
       index: 0, pendingIndex: null, frame: 0, settleTimer: 0, pointerActive: false
     };
     deckStates.set(deck, state);
+    deck.dataset.mode = state.expanded ? 'all' : 'slides';
     if (!track.hasAttribute('tabindex')) track.tabIndex = 0;
     state.tabs.forEach(tab => {
       const index = indexOfTab(tab);
@@ -128,10 +173,16 @@
       if (slides[index].id) tab.setAttribute('aria-controls', slides[index].id);
       tab.addEventListener('click', () => goTo(state, index));
     });
-    state.previous.forEach(button => button.addEventListener('click', () => goTo(state, (state.pendingIndex ?? state.index) - 1)));
-    state.next.forEach(button => button.addEventListener('click', () => goTo(state, (state.pendingIndex ?? state.index) + 1)));
+    state.previous.forEach(button => button.addEventListener('click', () => {
+      if (!state.expanded) goTo(state, (state.pendingIndex ?? state.index) - 1);
+    }));
+    state.next.forEach(button => button.addEventListener('click', () => {
+      if (!state.expanded) goTo(state, (state.pendingIndex ?? state.index) + 1);
+    }));
+    state.expandButtons.forEach(button => button.addEventListener('click', () => setExpanded(state, !state.expanded)));
 
     track.addEventListener('pointerdown', () => {
+      if (state.expanded) return;
       state.pendingIndex = null;
       state.pointerActive = true;
     }, { passive: true });
@@ -144,10 +195,11 @@
     window.addEventListener('pointerup', finishPointer, { passive: true });
     window.addEventListener('pointercancel', finishPointer, { passive: true });
     track.addEventListener('scroll', () => {
+      if (state.expanded) return;
       if (!state.frame) state.frame = window.requestAnimationFrame(() => {
         state.frame = 0;
         // Keep deliberate navigation stable while its smooth scroll is in flight.
-        if (state.pendingIndex === null) renderState(state, nearestIndex(state));
+        if (!state.expanded && state.pendingIndex === null) renderState(state, nearestIndex(state));
       });
       window.clearTimeout(state.settleTimer);
       state.settleTimer = window.setTimeout(() => settle(state), 160);
@@ -155,6 +207,7 @@
     track.addEventListener('scrollend', () => settle(state));
 
     deck.addEventListener('keydown', event => {
+      if (state.expanded) return;
       if (!['ArrowLeft', 'ArrowRight'].includes(event.key) || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
       const target = event.target;
       if (!(target instanceof Element) || !owns(target, deck)) return;
@@ -170,7 +223,7 @@
         activeTab?.focus({ preventScroll: true });
       }
     });
-    renderState(state, nearestIndex(state));
+    renderState(state, state.expanded ? 0 : nearestIndex(state));
     deck.dataset.enhanced = 'true';
 
     if ('ResizeObserver' in window) {
@@ -178,6 +231,7 @@
       const observer = new ResizeObserver(() => {
         if (track.clientWidth === previousWidth) return;
         previousWidth = track.clientWidth;
+        if (state.expanded) return;
         goTo(state, state.pendingIndex ?? state.index, true);
       });
       observer.observe(track);
@@ -191,19 +245,22 @@
     const target = document.getElementById(id);
     const slide = target?.closest('[data-slide]');
     const chapter = target?.closest('section[data-chapter]');
+    let expandedSlide = false;
     if (slide) {
       const state = deckStates.get(slide.closest('[data-deck]'));
-      if (state) goTo(state, state.slides.indexOf(slide), true);
+      if (state) {
+        expandedSlide = state.expanded;
+        goTo(state, state.slides.indexOf(slide), true);
+      }
     } else if (target?.matches('section[data-chapter]')) {
       // A project navigation link starts its narrative at the first slide.
       const state = deckStates.get(target.querySelector('[data-deck]'));
-      if (state) goTo(state, 0, true);
+      if (state && !state.expanded) goTo(state, 0, true);
     }
     if (chapter) {
       // Only explicit hash navigation aligns the chapter below the sticky header.
       // Native vertical wheel/touch scrolling remains entirely untouched.
-      const margin = Number.parseFloat(getComputedStyle(chapter).scrollMarginTop) || 0;
-      window.scrollTo({ top: window.scrollY + chapter.getBoundingClientRect().top - margin, behavior: 'instant' });
+      scrollContext(expandedSlide ? slide : chapter);
     }
   };
   let hashFrame = 0;

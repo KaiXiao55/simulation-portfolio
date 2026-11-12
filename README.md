@@ -2,9 +2,9 @@
 
 A read-only portfolio of numerical simulation, visual tracking, and systems engineering projects.
 
-The page is organized into vertical project chapters with horizontal narrative steps. RC tracking progresses through a real failure, self-built simulation, historical algorithm comparisons, and field outcomes. Doctoral research connects inverse design, numerical modeling, and force/energy validation. Industrial work is presented as two distinct projects. Each step has its own evidence and concise explanation.
+The page is organized into vertical project chapters. All narrative steps are expanded by default so readers can see the entire project by scrolling. Each chapter offers an optional horizontal presentation with explicit page counts and named next-step buttons. RC tracking progresses through a real failure, self-built simulation, historical algorithm comparisons, and field outcomes. Doctoral research connects inverse design, numerical modeling, and force/energy validation. Industrial work is presented as two distinct projects. Each step has its own evidence and concise explanation.
 
-Desktop tabs, arrow buttons, keyboard navigation, native horizontal swipe, and direct links are supported. Without JavaScript, all steps remain readable vertically. Mobile layouts put the video or figure directly after the step heading. The page also links to published research, project source, and a two-page résumé. It contains no editing endpoints or private review notes.
+In presentation mode, desktop tabs, named arrow buttons, keyboard navigation, native horizontal swipe, and direct links are supported. Returning to expanded reading reveals every step. Without JavaScript, all steps remain readable vertically. Mobile layouts put the video or figure directly after the step heading. The page also links to published research, project source, and a two-page résumé. The résumé groups self-built simulation, algorithm evaluation, phone deployment, and gimbal control under one RC auto-follow system project. It contains no editing endpoints or private review notes.
 
 ## Local preview
 

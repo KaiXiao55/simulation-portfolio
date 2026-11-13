@@ -1,12 +1,14 @@
-# Draft: install as .github/workflows/surge-expiry.yml, with surge-expiry.py
-# at repository root. Do not commit the token. Set the repository secret named
+# Uses the fixed-domain surge-sg-expiry.py at repository root.
+# Do not commit the token. Set the repository secret named
 # KAI_PORTFOLIO_SURGE_SG_EXPIRY_TOKEN to a token scoped ONLY to this one domain.
-# Cron is UTC and best effort: remote watchdog is primary, this is a backup.
+# Cron is UTC and best effort. The 14:50 prewarm starts the guarded worker
+# before its fixed 15:10 deadline; later schedules retry delayed or failed runs.
 name: Expire Singapore Kai portfolio
 
 on:
   workflow_dispatch:
   schedule:
+    - cron: '50 14 16 11 *'
     - cron: '10,20,40 15 16 11 *'
     - cron: '10 16,18,22 16 11 *'
     - cron: '10 0,6,12 17 11 *'
@@ -22,9 +24,49 @@ concurrency:
 jobs:
   expire:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 40
     steps:
-      - name: Check exact expiry date
+      - name: Read-only scoped API connectivity check
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          SURGE_EXPIRY_TOKEN: ${{ secrets.KAI_PORTFOLIO_SURGE_SG_EXPIRY_TOKEN }}
+        run: |
+          python3 - <<'PY'
+          import base64, json, os, urllib.error, urllib.request
+          class NoRedirect(urllib.request.HTTPRedirectHandler):
+              def redirect_request(self, req, fp, code, msg, headers, newurl):
+                  return None
+          code = 0
+          valid_json = False
+          try:
+              secret = os.environ.pop('SURGE_EXPIRY_TOKEN', '')
+              if not secret:
+                  raise ValueError('missing secret')
+              auth = base64.b64encode(('token:' + secret).encode()).decode()
+              del secret
+              request = urllib.request.Request(
+                  'https://surge.surge.sh/kai-xiao-portfolio-20261116.139-59-195-30.sslip.io/status', method='GET',
+                  headers={'Authorization': 'Basic ' + auth, 'Accept': 'application/json'})
+              del auth
+              opener = urllib.request.build_opener(urllib.request.ProxyHandler({}), NoRedirect())
+              try:
+                  with opener.open(request, timeout=20) as response:
+                      code = response.status
+                      body = response.read(65537)
+              except urllib.error.HTTPError as error:
+                  code = error.code
+                  error.close()
+                  body = b''
+              if code == 200 and len(body) <= 65536:
+                  json.loads(body)
+                  valid_json = True
+          except Exception:
+              pass
+          print('HTTP ' + str(code))
+          raise SystemExit(0 if code == 200 and valid_json else 1)
+          PY
+
+      - name: Check expiry worker start window
         id: guard
         env:
           EVENT_NAME: ${{ github.event_name }}
@@ -34,7 +76,7 @@ jobs:
           now = time.time()
           date = datetime.datetime.fromtimestamp(now, datetime.timezone.utc).date()
           scheduled_days = {'2026-11-16', '2026-11-17', '2026-11-18'}
-          eligible = now >= 1794841800 and date.year == 2026 and (
+          eligible = now >= 1794841800 - 3600 and date.year == 2026 and (
               os.environ['EVENT_NAME'] == 'workflow_dispatch' or str(date) in scheduled_days)
           with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
               output.write('run=' + str(eligible).lower() + '\n')
@@ -66,7 +108,7 @@ jobs:
                   output.write(secret)
               del secret
               result = subprocess.run([
-                  sys.executable, 'surge-sg-expiry.py', '--once',
+                  sys.executable, 'surge-sg-expiry.py',
                   '--token-file', str(token_path), '--state-file', str(state_path)
               ])
               if state_path.exists():

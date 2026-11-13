@@ -1,0 +1,119 @@
+# Uses the fixed-domain surge-fra-expiry.py at repository root.
+# Do not commit the token. Set the repository secret named
+# KAI_PORTFOLIO_SURGE_FRA_EXPIRY_TOKEN to a token scoped ONLY to this one domain.
+# Cron is UTC and best effort. The 14:50 prewarm starts the guarded worker
+# before its fixed 15:10 deadline; later schedules retry delayed or failed runs.
+name: Expire Frankfurt Kai portfolio
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '50 14 16 11 *'
+    - cron: '10,20,40 15 16 11 *'
+    - cron: '10 16,18,22 16 11 *'
+    - cron: '10 0,6,12 17 11 *'
+    - cron: '10 0 18 11 *'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: kai-portfolio-surge-fra-expiry-20261116
+  cancel-in-progress: false
+
+jobs:
+  expire:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - name: Read-only scoped API connectivity check
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          SURGE_EXPIRY_TOKEN: ${{ secrets.KAI_PORTFOLIO_SURGE_FRA_EXPIRY_TOKEN }}
+        run: |
+          python3 - <<'PY'
+          import base64, json, os, urllib.error, urllib.request
+          class NoRedirect(urllib.request.HTTPRedirectHandler):
+              def redirect_request(self, req, fp, code, msg, headers, newurl):
+                  return None
+          code = 0
+          valid_json = False
+          try:
+              secret = os.environ.pop('SURGE_EXPIRY_TOKEN', '')
+              if not secret:
+                  raise ValueError('missing secret')
+              auth = base64.b64encode(('token:' + secret).encode()).decode()
+              del secret
+              request = urllib.request.Request(
+                  'https://surge.surge.sh/kai-xiao-portfolio-20261116.138-68-112-220.sslip.io/status', method='GET',
+                  headers={'Authorization': 'Basic ' + auth, 'Accept': 'application/json'})
+              del auth
+              opener = urllib.request.build_opener(urllib.request.ProxyHandler({}), NoRedirect())
+              try:
+                  with opener.open(request, timeout=20) as response:
+                      code = response.status
+                      body = response.read(65537)
+              except urllib.error.HTTPError as error:
+                  code = error.code
+                  error.close()
+                  body = b''
+              if code == 200 and len(body) <= 65536:
+                  json.loads(body)
+                  valid_json = True
+          except Exception:
+              pass
+          print('HTTP ' + str(code))
+          raise SystemExit(0 if code == 200 and valid_json else 1)
+          PY
+
+      - name: Check expiry worker start window
+        id: guard
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          python3 - <<'PY'
+          import datetime, os, time
+          now = time.time()
+          date = datetime.datetime.fromtimestamp(now, datetime.timezone.utc).date()
+          scheduled_days = {'2026-11-16', '2026-11-17', '2026-11-18'}
+          eligible = now >= 1794841800 - 3600 and date.year == 2026 and (
+              os.environ['EVENT_NAME'] == 'workflow_dispatch' or str(date) in scheduled_days)
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
+              output.write('run=' + str(eligible).lower() + '\n')
+          PY
+
+      - name: Read expiry code
+        if: steps.guard.outputs.run == 'true'
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Attempt the single-domain expiry
+        if: steps.guard.outputs.run == 'true'
+        env:
+          SURGE_EXPIRY_TOKEN: ${{ secrets.KAI_PORTFOLIO_SURGE_FRA_EXPIRY_TOKEN }}
+        run: |
+          python3 - <<'PY'
+          import os, pathlib, subprocess, sys
+          root = pathlib.Path(os.environ['RUNNER_TEMP'])
+          token_path = root / 'kai-surge-expiry-token'
+          state_path = root / 'kai-surge-expiry-status.json'
+          secret = os.environ.pop('SURGE_EXPIRY_TOKEN', '')
+          if not secret:
+              raise SystemExit('Expiry token secret is missing')
+          os.umask(0o077)
+          fd = os.open(token_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+          try:
+              with os.fdopen(fd, 'w') as output:
+                  output.write(secret)
+              del secret
+              result = subprocess.run([
+                  sys.executable, 'surge-fra-expiry.py',
+                  '--token-file', str(token_path), '--state-file', str(state_path)
+              ])
+              if state_path.exists():
+                  print(state_path.read_text())  # Whitelisted times/status/HTTP code only.
+              raise SystemExit(result.returncode)
+          finally:
+              token_path.unlink(missing_ok=True)
+          PY
